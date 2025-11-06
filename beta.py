@@ -59,8 +59,8 @@ TAMANHO_CHUNK = {
 # PASTA DE SAÍDA - MELHORADA
 # ============================================
 
-# Usar /content/ mas com nome específico
-OUTPUT_DIR = Path('/content/kokoro_audio_output')
+# Usar pasta do projeto (Gradio consegue acessar)
+OUTPUT_DIR = Path('./kokoro_audio')
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 TEMP_DIR = Path('/tmp/kokoro_temp')
@@ -304,7 +304,7 @@ def criar_interface():
     
     with gr.Blocks(title="Kokoro TTS", theme=gr.themes.Soft()) as app:
         gr.Markdown("# 🎙️ Kokoro TTS - Otimizado + Chunks + FFmpeg")
-        gr.Markdown("⚡ Processamento paralelo | 💾 Salva em /content/kokoro_audio_output/")
+        gr.Markdown("⚡ Processamento paralelo | 💾 Salva em ./kokoro_audio/")
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -363,4 +363,5 @@ def criar_interface():
 
 if __name__ == "__main__":
     app = criar_interface()
-    app.launch(share=True)
+    # Adicionar pasta ao allowed_paths para Gradio conseguir acessar
+    app.launch(share=True, allowed_paths=['./kokoro_audio', '/tmp'])
