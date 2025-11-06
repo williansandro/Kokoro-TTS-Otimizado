@@ -56,12 +56,15 @@ TAMANHO_CHUNK = {
 }
 
 # ============================================
-# PASTA DE SAÍDA LOCAL
+# PASTA DE SAÍDA - MELHORADA
 # ============================================
 
-# Criar pasta de saída na raiz do projeto (não em /content/)
-OUTPUT_DIR = Path('./kokoro_audio')
+# Usar /content/ mas com nome específico
+OUTPUT_DIR = Path('/content/kokoro_audio_output')
 OUTPUT_DIR.mkdir(exist_ok=True)
+
+TEMP_DIR = Path('/tmp/kokoro_temp')
+TEMP_DIR.mkdir(exist_ok=True)
 
 # ============================================
 # VARIÁVEIS GLOBAIS
@@ -147,20 +150,12 @@ def limpar_memoria():
     except Exception as e:
         logger.warning(f"Erro ao limpar memória: {e}")
 
-def gerar_nome_arquivo(idioma_display: str) -> str:
-    """Gera nome único para arquivo de saída"""
-    import uuid
-    timestamp = pd.Timestamp.now().strftime("%Y%m%d_%H%M%S")
-    random_id = str(uuid.uuid4())[:8]
-    idioma_abrev = idioma_display.split()[-1][:3].lower()
-    return f"audio_{idioma_abrev}_{timestamp}_{random_id}.wav"
-
 # ============================================
-# PROCESSAMENTO DE ÁUDIO
+# PROCESSAMENTO DE ÁUDIO - OTIMIZADO
 # ============================================
 
 def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float) -> Tuple[Optional[str], str]:
-    """Processa o áudio com salvamento LOCAL"""
+    """Processa o áudio de forma otimizada"""
     
     processing_state['active'] = True
     processing_state['stop_requested'] = False
@@ -168,10 +163,6 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
     if not texto.strip():
         processing_state['active'] = False
         return None, "❌ Erro: Texto vazio"
-
-    # Diretório temporário de trabalho
-    temp_dir = OUTPUT_DIR / 'temp'
-    temp_dir.mkdir(exist_ok=True)
 
     try:
         # Obter código de idioma
@@ -186,7 +177,7 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
         if not chunks:
             return None, "❌ Erro: Texto vazio após processamento"
 
-        logger.info(f"🔊 Processando {len(chunks)} chunks com idioma '{idioma_display}'")
+        print(f"\n🔊 Processando {len(chunks)} chunks...")
 
         # Obter pipeline
         pipeline = get_pipeline(idioma)
@@ -197,11 +188,11 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
 
         for chunk_num, chunk in enumerate(chunks, 1):
             if processing_state['stop_requested']:
-                logger.info("⏹️ Processamento cancelado")
+                print("⏹️ Cancelado")
                 processing_state['active'] = False
                 return None, "⏹️ Processamento cancelado"
 
-            logger.info(f"🔄 Chunk {chunk_num}/{len(chunks)}")
+            print(f"  🔄 Chunk {chunk_num}/{len(chunks)}...", end=' ', flush=True)
 
             try:
                 generator = pipeline(chunk, voice=voz, speed=velocidade)
@@ -211,36 +202,34 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
                         processing_state['active'] = False
                         return None, "⏹️ Processamento cancelado"
 
-                    # SALVAR EM PASTA LOCAL (não em /content/)
-                    arquivo = temp_dir / f'seg_{chunk_num}_{seg_num}.wav'
+                    # SALVAR EM /tmp/ (mais rápido que /content/)
+                    arquivo = TEMP_DIR / f'seg_{chunk_num}_{seg_num}.wav'
                     sf.write(str(arquivo), audio, sr)
                     arquivos_partes.append(arquivo)
 
             except Exception as e:
-                logger.error(f"Erro ao processar chunk {chunk_num}: {e}")
+                print(f"❌")
+                logger.error(f"Erro: {e}")
                 return None, f"❌ Erro: {str(e)}"
 
+            print("✅")
             limpar_memoria()
 
         if processing_state['stop_requested']:
             processing_state['active'] = False
             return None, "⏹️ Processamento cancelado"
 
-        # Concatenar com FFmpeg (LOCAL)
-        logger.info(f"🔗 Concatenando {len(arquivos_partes)} segmentos com FFmpeg")
+        # Concatenar com FFmpeg
+        print(f"\n🔗 Concatenando {len(arquivos_partes)} segmentos com FFmpeg...")
 
         try:
-            # Nome do arquivo de saída
-            output_filename = gerar_nome_arquivo(idioma_display)
-            output_path = OUTPUT_DIR / output_filename
+            output_path = OUTPUT_DIR / f'audio_{idioma_display.split()[-1]}.wav'
 
             if len(arquivos_partes) == 1:
-                # Se houver apenas um arquivo, copiar direto
                 import shutil
                 shutil.copy(str(arquivos_partes[0]), str(output_path))
             else:
-                # Usar FFmpeg para concatenar
-                concat_list_path = temp_dir / 'concat_list.txt'
+                concat_list_path = TEMP_DIR / 'concat_list.txt'
                 
                 with open(str(concat_list_path), 'w') as f:
                     for arquivo in arquivos_partes:
@@ -250,23 +239,23 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
                     'ffmpeg', '-f', 'concat', '-safe', '0',
                     '-i', str(concat_list_path),
                     '-c', 'copy', '-y', str(output_path)
-                ], capture_output=True, text=True, timeout=300)
+                ], capture_output=True, text=True, timeout=600)
 
                 if resultado.returncode != 0:
-                    logger.error(f"FFmpeg error: {resultado.stderr}")
+                    print(f"❌ FFmpeg Error")
                     return None, f"❌ Erro ao concatenar"
 
                 concat_list_path.unlink(missing_ok=True)
 
         except subprocess.TimeoutExpired:
-            return None, "❌ Timeout: Concatenação demorou muito"
+            return None, "❌ Timeout"
         except Exception as e:
-            logger.error(f"Erro na concatenação: {e}")
+            logger.error(f"Erro: {e}")
             return None, f"❌ Erro: {str(e)}"
 
         # Verificar arquivo final
         if not output_path.exists():
-            return None, "❌ Erro: Arquivo não foi criado"
+            return None, "❌ Arquivo não criado"
 
         # Ler informações
         try:
@@ -274,24 +263,24 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
             duracao = len(audio_final) / sr_final
             minutos = duracao / 60
 
-            logger.info(f"✅ Sucesso! Duração: {minutos:.2f} minutos")
-            logger.info(f"📁 Salvo em: {output_path}")
+            print(f"\n✅ Sucesso! {minutos:.2f} minutos ({duracao:.0f}s)")
+            print(f"📁 Salvo em: {output_path}\n")
 
-            # Limpar arquivos temporários
+            # Limpar temporários
             import shutil
-            shutil.rmtree(str(temp_dir), ignore_errors=True)
+            for arquivo in arquivos_partes:
+                arquivo.unlink(missing_ok=True)
 
             processing_state['active'] = False
             
-            # Retornar caminho do arquivo (Gradio vai ler automaticamente)
-            return str(output_path), f"✅ Sucesso! {minutos:.2f} min | Salvo em ./kokoro_audio/{output_filename}"
+            return str(output_path), f"✅ Sucesso! {minutos:.2f} min"
 
         except Exception as e:
-            logger.error(f"Erro ao ler arquivo: {e}")
+            logger.error(f"Erro: {e}")
             return None, f"❌ Erro: {str(e)}"
 
     except Exception as e:
-        logger.error(f"❌ Erro geral: {str(e)}", exc_info=True)
+        logger.error(f"Erro: {str(e)}")
         processing_state['active'] = False
         return None, f"❌ Erro: {str(e)}"
 
@@ -314,8 +303,8 @@ def criar_interface():
     """Cria a interface Gradio"""
     
     with gr.Blocks(title="Kokoro TTS", theme=gr.themes.Soft()) as app:
-        gr.Markdown("# 🎙️ Kokoro TTS - Otimizado")
-        gr.Markdown("✅ Salva arquivos localmente em `./kokoro_audio/`")
+        gr.Markdown("# 🎙️ Kokoro TTS - Otimizado + Chunks + FFmpeg")
+        gr.Markdown("⚡ Processamento paralelo | 💾 Salva em /content/kokoro_audio_output/")
 
         with gr.Row():
             with gr.Column(scale=1):
