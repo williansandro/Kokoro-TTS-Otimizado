@@ -1,4 +1,4 @@
-from text_normalizer import KokoroTextNormalizer
+
 # Initalize a pipeline
 from kokoro import KPipeline
 
@@ -6,6 +6,7 @@ from kokoro import KPipeline
 # import soundfile as sf
 import os
 from huggingface_hub import list_repo_files
+from text_normalizer import KokoroTextNormalizer
 import uuid
 import re 
 import gradio as gr
@@ -177,10 +178,17 @@ def remove_silence_function(file_path,minimum_silence=50):
     return output_path
 
 def generate_and_save_audio(text, Language="American English",voice="af_bella", speed=1,remove_silence=False,keep_silence_up_to=0.05):
+    # NOVO: Normalizar texto primeiro
+    normalizer = KokoroTextNormalizer()
+    text = normalizer.normalizar(text)  # ← AQUI: Converte números, datas, etc.
+    
     text=clean_text(text)
     update_pipeline(Language)
     generator = pipeline(text, voice=voice, speed=speed, split_pattern=r'\n+')
     save_path=tts_file_name(text,Language)
+    # ... resto continua igual
+    timestamps={}
+    with wave.open(save_path, 'wb') as wav_file:
     # Open the WAV file for writing
     timestamps={}
     with wave.open(save_path, 'wb') as wav_file:
