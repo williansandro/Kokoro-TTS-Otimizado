@@ -6,6 +6,10 @@ class KokoroTextNormalizer:
     """
     Normaliza texto convertendo números, datas, símbolos e operações matemáticas
     para forma escrita, preservando toda a informação original.
+    
+    Uso:
+        normalizer = KokoroTextNormalizer()
+        texto_normalizado = normalizer.normalizar("He bought 2 swords for $50 on 05/15/1842")
     """
     
     # Mapeamentos básicos
@@ -321,8 +325,6 @@ class KokoroTextNormalizer:
                       lambda m: f"{KokoroTextNormalizer.numero_para_palavras(int(m.group(1)))} by {KokoroTextNormalizer.numero_para_palavras(int(m.group(2)))}",
                       texto)
         
-        # 3 to 1 (já está em formato texto)
-        
         return texto
     
     @staticmethod
@@ -330,9 +332,14 @@ class KokoroTextNormalizer:
         """
         Normaliza texto preservando toda informação.
         Ordem é importante: fazer operações mais específicas antes das mais gerais.
+        
+        Args:
+            texto: String com números, datas, símbolos, etc.
+        
+        Returns:
+            String normalizada com tudo convertido para palavras
         """
         
-        # Preservar estrutura original com marcadores
         original_length = len(texto)
         
         # 1. Operações matemáticas (mais específicas)
@@ -368,49 +375,4 @@ class KokoroTextNormalizer:
         # 11. Números gerais (por último)
         texto = KokoroTextNormalizer.processar_numeros(texto)
         
-        # Sanidade: verificar se perdemos caracteres
-        texto_sem_espacos = texto.replace(' ', '')
-        if len(texto_sem_espacos) < original_length * 0.8:  # Se ficou muito mais curto, pode ter problema
-            print(f"⚠️ Aviso: Texto pode ter perdido informação. Original: {original_length}, Normalizado: {len(texto_sem_espacos)}")
-        
         return texto
-
-
-# ============= EXEMPLOS DE USO =============
-
-if __name__ == "__main__":
-    normalizer = KokoroTextNormalizer()
-    
-    exemplos = [
-        "He bought 2 swords and paid $50.99 for them.",
-        "The journey lasted 15 days and 3 hours.",
-        "There were 47 villagers in the square.",
-        "The book contained 101 spells.",
-        "The dragon was 386 years old.",
-        "The reward was 1,500 gold coins.",
-        "The story takes place in the year 2025.",
-        "He was the 1st to arrive.",
-        "The festival was in its 23rd year.",
-        "There was only a 1% chance of failure.",
-        "The shield blocked 15% of the damage.",
-        "She used 50% of her mana.",
-        "Two plus three equals five: 2 + 3 = 5",
-        "He weighed 5 kilos and was 1.75 meters tall.",
-        "The temperature was 15°C and distance 10 km.",
-        "The holographic screen displayed 16:9 ratio.",
-        "The home team was winning 3 to 1.",
-        "Louis XIV ruled for many years.",
-        "Agent 007 received protocol 87-B.",
-        "He drank 1/2 of the potion.",
-        "R$ 50 for the daily rate and € 100 for the artifact.",
-    ]
-    
-    print("=" * 80)
-    print("KOKORO TEXT NORMALIZER - EXEMPLOS")
-    print("=" * 80)
-    
-    for exemplo in exemplos:
-        normalizado = normalizer.normalizar(exemplo)
-        print(f"\nORIGINAL:\n  {exemplo}")
-        print(f"NORMALIZADO:\n  {normalizado}")
-        print("-" * 80)
