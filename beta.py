@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 from typing import Tuple, Optional
 import warnings
+from text_normalizer import KokoroTextNormalizer  # ← NOVO
 warnings.filterwarnings('ignore')
 
 # ============================================
@@ -165,6 +166,11 @@ def processar_audio(texto: str, idioma_display: str, voz: str, velocidade: float
         return None, "❌ Erro: Texto vazio"
 
     try:
+        # ✅ NORMALIZAR AQUI (uma única vez!)
+        normalizer = KokoroTextNormalizer()
+        texto = normalizer.normalizar(texto)
+        print(f"✅ Texto normalizado: {texto[:100]}...")
+        
         # Obter código de idioma
         idioma = IDIOMAS.get(idioma_display)
         if not idioma:
@@ -303,15 +309,15 @@ def criar_interface():
     """Cria a interface Gradio"""
     
     with gr.Blocks(title="Kokoro TTS", theme=gr.themes.Soft()) as app:
-        gr.Markdown("# 🎙️ Kokoro TTS - Otimizado + Chunks + FFmpeg")
-        gr.Markdown("⚡ Processamento paralelo | 💾 Salva em ./kokoro_audio/")
+        gr.Markdown("# 🎙️ Kokoro TTS - Otimizado + Text Normalizer")
+        gr.Markdown("⚡ Com normalização de números, datas e símbolos | 💾 Salva em ./kokoro_audio/")
 
         with gr.Row():
             with gr.Column(scale=1):
                 gr.Markdown("### 📝 Texto")
                 texto_input = gr.Textbox(
                     label="",
-                    placeholder="Digite o texto...",
+                    placeholder="Digite o texto (com números, datas, etc)...",
                     lines=8,
                     max_lines=20,
                     autofocus=True
